@@ -101,12 +101,11 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Site Watch", lifespan=lifespan)
-app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 
 
 @app.get("/")
 def home():
-    return FileResponse(ROOT / "static" / "index.html")
+    return FileResponse(ROOT / "docs" / "index.html")
 
 
 @app.get("/api/targets")
@@ -131,3 +130,5 @@ async def check_now(target_id: str):
 def health():
     return {"ok": True}
 
+
+app.mount("/", StaticFiles(directory=ROOT / "docs", html=True), name="pages")
