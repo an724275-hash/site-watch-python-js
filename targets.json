@@ -1,5 +1,6 @@
 [
-  {"id": "example", "name": "Example Domain", "url": "https://example.com"},
-  {"id": "python", "name": "Python", "url": "https://www.python.org"}
+  {"id": "portfolio", "name": "Портфолио", "url": "https://giveaway-one.ru/"},
+  {"id": "proj", "name": "Проект для портфолио", "url": "https://an724275-hash.github.io/proj-for-portfolio/"},
+  {"id": "leather", "name": "San Diego Leather Repair", "url": "https://sandiegoleatherrepair.com/"},
+  {"id": "marcos", "name": "Marcos Mall", "url": "https://marcos-mall.ru/"}
 ]
-

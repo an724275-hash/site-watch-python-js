@@ -113,7 +113,7 @@ def list_targets():
     with connect() as db:
         result = []
         for target in targets():
-            rows = db.execute("SELECT * FROM checks WHERE target_id=? ORDER BY id DESC LIMIT 24", (target["id"],)).fetchall()
+            rows = db.execute("SELECT * FROM checks WHERE target_id=? ORDER BY id DESC LIMIT 2016", (target["id"],)).fetchall()
             result.append({**target, "history": [dict(row) for row in reversed(rows)]})
         return result
 
