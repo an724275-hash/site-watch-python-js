@@ -1,43 +1,6 @@
 {
-  "updated_at": "2026-10-02T08:33:37.023370+00:00",
+  "updated_at": "2026-10-02T15:00:33.094600+00:00",
   "checks": [
-    {
-      "checked_at": "2026-09-25T11:49:10.330446+00:00",
-      "targets": [
-        {
-          "id": "portfolio",
-          "name": "Портфолио",
-          "url": "https://giveaway-one.ru/",
-          "ok": true,
-          "status_code": 200,
-          "latency_ms": 525
-        },
-        {
-          "id": "proj",
-          "name": "Проект для портфолио",
-          "url": "https://an724275-hash.github.io/proj-for-portfolio/",
-          "ok": true,
-          "status_code": 200,
-          "latency_ms": 195
-        },
-        {
-          "id": "leather",
-          "name": "San Diego Leather Repair",
-          "url": "https://sandiegoleatherrepair.com/",
-          "ok": false,
-          "status_code": 403,
-          "latency_ms": 221
-        },
-        {
-          "id": "marcos",
-          "name": "Marcos Mall",
-          "url": "https://marcos-mall.ru/",
-          "ok": false,
-          "error": "ConnectTimeout",
-          "latency_ms": 8020
-        }
-      ]
-    },
     {
       "checked_at": "2026-09-25T17:09:34.719345+00:00",
       "targets": [
@@ -1404,6 +1367,43 @@
           "ok": true,
           "status_code": 200,
           "latency_ms": 1103
+        }
+      ]
+    },
+    {
+      "checked_at": "2026-10-02T15:00:33.094600+00:00",
+      "targets": [
+        {
+          "id": "portfolio",
+          "name": "Портфолио",
+          "url": "https://giveaway-one.ru/",
+          "ok": true,
+          "status_code": 200,
+          "latency_ms": 387
+        },
+        {
+          "id": "proj",
+          "name": "Проект для портфолио",
+          "url": "https://an724275-hash.github.io/proj-for-portfolio/",
+          "ok": true,
+          "status_code": 200,
+          "latency_ms": 201
+        },
+        {
+          "id": "leather",
+          "name": "San Diego Leather Repair",
+          "url": "https://sandiegoleatherrepair.com/",
+          "ok": false,
+          "status_code": 403,
+          "latency_ms": 159
+        },
+        {
+          "id": "marcos",
+          "name": "Marcos Mall",
+          "url": "https://marcos-mall.ru/",
+          "ok": true,
+          "status_code": 200,
+          "latency_ms": 1134
         }
       ]
     }
