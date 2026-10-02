@@ -14,6 +14,11 @@ def isolated(tmp_path, monkeypatch):
     config = tmp_path / "targets.json"
     config.write_text(json.dumps([{"id": "demo", "name": "Demo", "url": "https://example.com"}]))
     monkeypatch.setattr(app, "TARGETS_PATH", config)
+    # TestClient starts the lifespan task; unit tests must not probe the internet.
+    async def no_background_checks():
+        pass
+
+    monkeypatch.setattr(app, "check_all", no_background_checks)
 
 
 def test_check_and_history():
@@ -35,4 +40,3 @@ def test_only_https_targets(tmp_path):
     app.TARGETS_PATH.write_text('[{"id":"bad","name":"Bad","url":"http://localhost"}]')
     with pytest.raises(ValueError):
         app.targets()
-
