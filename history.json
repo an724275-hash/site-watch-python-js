@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-10-02T06:56:19.767594+00:00",
+  "updated_at": "2026-10-02T06:56:54.481409+00:00",
   "checks": [
     {
       "checked_at": "2026-09-25T11:49:10.330446+00:00",
@@ -1330,6 +1330,43 @@
           "ok": true,
           "status_code": 200,
           "latency_ms": 1475
+        }
+      ]
+    },
+    {
+      "checked_at": "2026-10-02T06:56:54.481409+00:00",
+      "targets": [
+        {
+          "id": "portfolio",
+          "name": "Портфолио",
+          "url": "https://giveaway-one.ru/",
+          "ok": true,
+          "status_code": 200,
+          "latency_ms": 482
+        },
+        {
+          "id": "proj",
+          "name": "Проект для портфолио",
+          "url": "https://an724275-hash.github.io/proj-for-portfolio/",
+          "ok": true,
+          "status_code": 200,
+          "latency_ms": 176
+        },
+        {
+          "id": "leather",
+          "name": "San Diego Leather Repair",
+          "url": "https://sandiegoleatherrepair.com/",
+          "ok": false,
+          "status_code": 403,
+          "latency_ms": 355
+        },
+        {
+          "id": "marcos",
+          "name": "Marcos Mall",
+          "url": "https://marcos-mall.ru/",
+          "ok": true,
+          "status_code": 200,
+          "latency_ms": 1424
         }
       ]
     }
