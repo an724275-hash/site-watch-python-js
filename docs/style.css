@@ -279,10 +279,11 @@ label {
   line-height: 1.4;
 }
 .state {
+  max-width: 11em;
   font-size: 0.78rem;
   font-weight: 600;
   align-self: start;
-  white-space: nowrap;
+  white-space: normal;
 }
 .up {
   color: var(--accent);
@@ -299,6 +300,7 @@ label {
   color: var(--muted);
 }
 .row-measures {
+  flex-wrap: wrap;
   grid-column: 1/-1;
   display: flex;
   gap: 12px;

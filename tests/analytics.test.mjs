@@ -14,6 +14,8 @@ test("site analytics use observed checks only", () => {
   ];
   assert.deepEqual(summarize(checks), {
     count: 4,
+    evaluated: 4,
+    uncertain: 0,
     successes: 2,
     share: 0.5,
     medianMs: 150,
@@ -75,7 +77,43 @@ test("blocked checks and legacy redirects do not become successful answers or ou
     { ok: true, status_code: 200 },
   ]);
   assert.equal(summary.successes, 1);
+  assert.equal(summary.share, 1);
+  assert.equal(summary.evaluated, 1);
+  assert.equal(summary.uncertain, 2);
   assert.equal(summary.incidents, 0);
+});
+
+test("GoldenFix: all blocked observations produce no availability estimate, never zero", () => {
+  const report = summarize(
+    Array.from({ length: 37 }, () => ({
+      ok: false,
+      status_code: 403,
+      latency_ms: 500,
+    })),
+  );
+  assert.equal(report.count, 37);
+  assert.equal(report.evaluated, 0);
+  assert.equal(report.uncertain, 37);
+  assert.equal(report.share, null);
+  assert.equal(report.medianMs, null);
+  assert.equal(report.incidents, 0);
+});
+
+test("inconclusive observations do not dilute success or manufacture recovery", () => {
+  const report = summarize([
+    { ok: false, status_code: 503 },
+    { ok: false, status_code: 401 },
+    { ok: false, status_code: 429 },
+    { ok: null },
+    { ok: false, status_code: 503 },
+    { ok: true, status_code: 200 },
+  ]);
+  assert.equal(report.evaluated, 3);
+  assert.equal(report.uncertain, 3);
+  assert.equal(report.share, 1 / 3);
+  assert.equal(report.incidents, 1);
+  assert.equal(summarize([]).share, null);
+  assert.equal(summarize([{ ok: false, status_code: 503 }]).share, 0);
 });
 
 test("CSV metadata, BOM, quoted newline and empty position", () => {

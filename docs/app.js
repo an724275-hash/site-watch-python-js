@@ -45,7 +45,7 @@ const date = (value) =>
     ? dates.format(new Date(value))
     : "Ещё не проверяли";
 const pct = (value) =>
-  value === null ? "Нет проверок" : numbers.format(value * 100) + "%";
+  value === null ? "Нет оценки" : numbers.format(value * 100) + "%";
 const ms = (value) =>
   Number.isFinite(value) ? numbers.format(value) + " мс" : "Нет измерения";
 const checksFor = (id) => observations(history, id, Number($("#period").value));
@@ -72,7 +72,7 @@ function state(check) {
       kind === "up"
         ? "HTTP " + check.status_code
         : kind === "blocked"
-          ? "Ограничен · " + check.status_code
+          ? "Не удалось проверить"
           : kind === "redirect"
             ? "Редирект"
             : check.error
@@ -139,11 +139,13 @@ function renderOverview() {
   const parent = $("#overview");
   parent.replaceChildren();
   const up = targets.filter((item) => state(item).kind === "up").length;
-  const attention = targets.filter((item) => state(item).kind !== "up").length;
+  const failures = targets.filter((item) => state(item).kind === "down").length;
+  const uncertain = targets.length - up - failures;
   const report = summarize(targets.flatMap((item) => checksFor(item.id)));
   for (const [value, label, className] of [
-    [up + " / " + targets.length, "с HTTP 2xx в свежем снимке", "main-stat"],
-    [attention, "требуют внимания", ""],
+    [up, "с успешным ответом", "main-stat"],
+    [failures, "с ошибкой проверки", ""],
+    [uncertain, "не удалось оценить", ""],
     [report.count, "наблюдений за период", ""],
   ]) {
     const p = el("p");
@@ -208,7 +210,15 @@ function renderSites() {
     );
     const measures = el("span", "row-measures");
     measures.append(
-      el("span", "", pct(report.share) + " · проверок: " + report.count),
+      el(
+        "span",
+        "",
+        pct(report.share) +
+          " · учтено: " +
+          report.evaluated +
+          " из " +
+          report.count,
+      ),
     );
     const bars = el("span", "mini-track");
     bars.setAttribute("aria-hidden", "true");
@@ -273,7 +283,9 @@ function renderDetail() {
     note += errors[target.error] || "Ошибка проверки: " + target.error + ".";
   else if (outcome(target) === "blocked")
     note +=
-      "Сервер ограничил автоматический запрос. Проверьте сайт в браузере; это не доказательство недоступности посетителям.";
+      "Проверяющий сервер получил HTTP " +
+      target.status_code +
+      ". Сайт может нормально работать в браузере. Этот ответ не учитывается как простой или успех; доступность по нему определить нельзя.";
   else if (outcome(target) === "redirect")
     note +=
       "Старый снимок содержит только ответ перенаправления, без подтверждения конечной страницы.";
@@ -312,13 +324,27 @@ function renderDetail() {
   for (const [label, value] of [
     ["Успешные наблюдения", pct(report.share)],
     ["Медиана ответа", ms(report.medianMs)],
-    ["Эпизоды ошибок", report.incidents],
+    ["Эпизоды ошибок", report.evaluated ? report.incidents : "Нет оценки"],
   ]) {
     const fact = el("div");
     fact.append(el("span", "", label), el("strong", "", value));
     facts.append(fact);
   }
-  pane.append(facts, el("h3", "", "Как менялось время ответа"));
+  pane.append(facts);
+  pane.append(
+    el(
+      "p",
+      "check-note",
+      "Учтено наблюдений: " +
+        report.evaluated +
+        " из " +
+        report.count +
+        ". Без оценки: " +
+        report.uncertain +
+        ". Заблокированные проверки, непроверенные редиректы и неизвестные результаты исключены из процента успеха.",
+    ),
+  );
+  pane.append(el("h3", "", "Как менялось время ответа"));
   // Request failures have no HTTP response latency. Do not chart their timeout as a response.
   const responses = checks.filter((check) => check.status_code && !check.error);
   const points = chartPoints(responses, 560, 120);

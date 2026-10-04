@@ -35,12 +35,17 @@ export function summarize(checks) {
   if (!count)
     return {
       count: 0,
+      evaluated: 0,
+      uncertain: 0,
       successes: 0,
       share: null,
       medianMs: null,
       incidents: 0,
     };
   const successes = checks.filter((check) => outcome(check) === "up").length;
+  const evaluated = checks.filter((check) =>
+    ["up", "down"].includes(outcome(check)),
+  ).length;
   const delays = checks
     .filter(
       (check) =>
@@ -52,14 +57,18 @@ export function summarize(checks) {
   let incidents = 0,
     wasDown = false;
   for (const check of checks) {
+    // An inconclusive observation proves neither failure nor recovery.
+    if (!["up", "down"].includes(outcome(check))) continue;
     const down = outcome(check) === "down";
     if (down && !wasDown) incidents++;
     wasDown = down;
   }
   return {
     count,
+    evaluated,
+    uncertain: count - evaluated,
     successes,
-    share: successes / count,
+    share: evaluated ? successes / evaluated : null,
     medianMs: median(delays),
     incidents,
   };
