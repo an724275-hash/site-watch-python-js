@@ -1,4 +1,9 @@
-import { observations, summarize, chartPoints, outcome } from "./analytics.mjs";
+import {
+  observations,
+  summarize,
+  chartPoints,
+  outcome,
+} from "./analytics.mjs?v=blocked-checks-2";
 import { parseSeoCsv, summarizeSeo } from "./seo.mjs";
 import { readSnapshot, fromApi, safeUrl, stale } from "./data.mjs";
 
