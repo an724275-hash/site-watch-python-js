@@ -27,6 +27,7 @@ export function outcome(check) {
     (check.status_code >= 300 && check.status_code < 400)
   )
     return "redirect";
+  if (check.error) return "unreachable";
   return check.ok ? "up" : "down";
 }
 

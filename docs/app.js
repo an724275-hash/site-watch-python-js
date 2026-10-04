@@ -3,7 +3,7 @@ import {
   summarize,
   chartPoints,
   outcome,
-} from "./analytics.mjs?v=blocked-checks-2";
+} from "./analytics.mjs?v=blocked-checks-3";
 import { parseSeoCsv, summarizeSeo } from "./seo.mjs";
 import { readSnapshot, fromApi, safeUrl, stale } from "./data.mjs";
 
@@ -346,7 +346,7 @@ function renderDetail() {
         report.count +
         ". Без оценки: " +
         report.uncertain +
-        ". Заблокированные проверки, непроверенные редиректы и неизвестные результаты исключены из процента успеха.",
+        ". Заблокированные проверки, сетевые ошибки без HTTP-ответа, непроверенные редиректы и неизвестные результаты исключены из процента успеха.",
     ),
   );
   pane.append(el("h3", "", "Как менялось время ответа"));

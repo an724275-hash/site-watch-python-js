@@ -292,6 +292,7 @@ label {
   color: var(--bad);
 }
 .blocked,
+.unreachable,
 .redirect,
 .stale {
   color: var(--warn);

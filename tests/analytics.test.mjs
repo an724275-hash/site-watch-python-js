@@ -99,6 +99,23 @@ test("GoldenFix: all blocked observations produce no availability estimate, neve
   assert.equal(report.incidents, 0);
 });
 
+test("GoldenFix recorded history: blocked requests and connection timeouts cannot establish downtime", () => {
+  const checks = Array.from({ length: 36 }, () => ({
+    ok: false,
+    status_code: 403,
+  }));
+  checks.push(
+    { ok: false, error: "ConnectTimeout" },
+    { ok: false, error: "ConnectTimeout" },
+  );
+  const report = summarize(checks);
+  assert.equal(report.evaluated, 0);
+  assert.equal(report.uncertain, 38);
+  assert.equal(report.share, null);
+  assert.equal(report.incidents, 0);
+  assert.equal(outcome(checks.at(-1)), "unreachable");
+});
+
 test("inconclusive observations do not dilute success or manufacture recovery", () => {
   const report = summarize([
     { ok: false, status_code: 503 },
