@@ -1,97 +1,133 @@
-import { observations, summarize, median, chartPoints } from "./analytics.mjs";
+import { observations, summarize, chartPoints, outcome } from "./analytics.mjs";
 import { parseSeoCsv, summarizeSeo } from "./seo.mjs";
+import { readSnapshot, fromApi, safeUrl, stale } from "./data.mjs";
 
 const $ = (selector) => document.querySelector(selector);
-const local = location.pathname === "/";
-const dateTime = new Intl.DateTimeFormat("ru-RU", {
+const api = $('meta[name="site-watch-mode"]').content === "api";
+const dates = new Intl.DateTimeFormat("ru-RU", {
   dateStyle: "short",
   timeStyle: "short",
 });
-const integer = new Intl.NumberFormat("ru-RU");
+const numbers = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 });
 let targets = [],
   history = { checks: [] },
   selectedId = null,
-  seoQuery = "",
-  loading = false;
+  loading = false,
+  checkedAt = null,
+  queryPage = 0;
 const seoData = new Map();
+const errors = {
+  ConnectError: "Не удалось подключиться: возможна проблема сети, DNS или TLS.",
+  ConnectTimeout: "Истекло время подключения.",
+  ReadTimeout: "Сервер не ответил вовремя.",
+  TimeoutError: "Проверка превысила общий лимит 20 секунд.",
+  TooManyRedirects: "Слишком длинная или циклическая цепочка перенаправлений.",
+  RedirectOutsideTarget:
+    "Перенаправление на другой хост или небезопасный адрес. Автоматическая проверка остановлена.",
+  MissingRedirectLocation:
+    "Сервер вернул перенаправление без адреса назначения.",
+};
 
-function element(tag, className = "", value) {
+function el(tag, className = "", value) {
   const node = document.createElement(tag);
-  if (className) node.className = className;
+  node.className = className;
   if (value !== undefined) node.textContent = value;
   return node;
 }
-function percent(value) {
-  return value === null ? "Нет данных" : `${Math.round(value * 100)}%`;
+function button(text, action, className = "") {
+  const node = el("button", className, text);
+  node.type = "button";
+  node.addEventListener("click", action);
+  return node;
 }
-function smallDate(value) {
-  return dateTime.format(new Date(value));
+const date = (value) =>
+  Number.isFinite(Date.parse(value))
+    ? dates.format(new Date(value))
+    : "Ещё не проверяли";
+const pct = (value) =>
+  value === null ? "Нет проверок" : numbers.format(value * 100) + "%";
+const ms = (value) =>
+  Number.isFinite(value) ? numbers.format(value) + " мс" : "Нет измерения";
+const checksFor = (id) => observations(history, id, Number($("#period").value));
+const seoKey = () =>
+  JSON.stringify([$("#seo-site").value, $("#seo-source").value]);
+const seoCurrent = () => seoData.get(seoKey());
+function notice(id, text) {
+  const node = $(id);
+  node.textContent = text;
+  node.hidden = !text;
 }
-function placeholder(parent, message) {
-  parent.replaceChildren(element("p", "empty-state", message));
+function empty(parent, title, text) {
+  const node = el("div", "empty-state");
+  node.append(el("h3", "", title), el("p", "", text));
+  parent.replaceChildren(node);
 }
-function checkRange(targetId) {
-  return observations(history, targetId, Number($("#period").value));
+function state(check) {
+  const kind = outcome(check);
+  if (kind === "unknown") return { kind, label: "Ожидает проверки" };
+  if (stale(check)) return { kind: "stale", label: "Данные устарели" };
+  return {
+    kind,
+    label:
+      kind === "up"
+        ? "HTTP " + check.status_code
+        : kind === "blocked"
+          ? "Ограничен · " + check.status_code
+          : kind === "redirect"
+            ? "Редирект"
+            : check.error
+              ? "Нет ответа"
+              : "Ошибка · " + check.status_code,
+  };
 }
 
 async function load() {
   if (loading) return;
   loading = true;
   $("#refresh").disabled = true;
-  $("#refresh").textContent = "Обновляем…";
+  $("#refresh").textContent = "Загружаем…";
   try {
-    if (local) {
-      const response = await fetch("/api/targets", { cache: "no-store" });
-      if (!response.ok) throw Error("network");
-      const data = await response.json();
-      targets = data.map((item) => {
-        const latest = item.history.at(-1);
-        return {
-          ...latest,
-          id: item.id,
-          name: item.name,
-          url: item.url,
-          ok: latest ? Boolean(latest.ok) : null,
-        };
-      });
-      history = {
-        checks: data
-          .flatMap((item) =>
-            item.history.map((check) => ({
-              checked_at: check.checked_at,
-              targets: [{ ...check, id: item.id }],
-            })),
-          )
-          .sort((a, b) => a.checked_at.localeCompare(b.checked_at)),
-      };
-      $("#checked").textContent = history.checks.length
-        ? smallDate(history.checks.at(-1).checked_at)
-        : "Проверка ещё не выполнена";
-    } else {
-      const [statusResponse, historyResponse] = await Promise.all([
-        fetch("./status.json", { cache: "no-store" }),
-        fetch("./history.json", { cache: "no-store" }),
-      ]);
-      if (!statusResponse.ok) throw Error("network");
-      const status = await statusResponse.json();
-      targets = status.targets;
-      history = historyResponse.ok
-        ? await historyResponse.json()
-        : { checks: [status] };
-      $("#checked").textContent = smallDate(status.checked_at);
-      if (Date.now() - Date.parse(status.checked_at) > 3 * 3600000)
-        $("#checked").textContent += " · данные задерживаются";
-    }
+    const response = await fetch(api ? "/api/targets" : "./history.json", {
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const data = await response.json();
+    const result = api ? fromApi(data) : readSnapshot(data);
+    targets = result.targets;
+    history = result.history;
+    checkedAt = result.checkedAt;
     if (!targets.some((item) => item.id === selectedId)) selectedId = null;
+    $("#checked").textContent = date(checkedAt);
+    notice(
+      "#load-feedback",
+      checkedAt && stale({ checked_at: checkedAt })
+        ? "Последние данные старше трёх часов или имеют неверную дату. Текущее состояние сайтов неизвестно. Проверьте запуски GitHub Actions."
+        : "",
+    );
     fillSeoSites();
     render();
   } catch {
-    $("#checked").textContent = "Нет данных";
-    placeholder(
-      $("#overview"),
-      "Не удалось загрузить проверки. Попробуйте обновить страницу.",
+    notice(
+      "#load-feedback",
+      targets.length
+        ? "Не удалось обновить данные. Ниже сохранён последний успешно загруженный снимок от " +
+            date(checkedAt) +
+            ". Повторите загрузку."
+        : "Не удалось загрузить историю. Нажмите «Обновить данные» или проверьте последний запуск в репозитории.",
     );
-    placeholder($("#site-list"), "Список сайтов временно недоступен.");
+    if (!targets.length) {
+      $("#checked").textContent = "Не загружено";
+      empty(
+        $("#overview"),
+        "Проверки недоступны",
+        "Статусы не подменяются нулями или успешными ответами.",
+      );
+      empty(
+        $("#site-list"),
+        "История не загружена",
+        "Список появится после успешного получения данных.",
+      );
+    } else render();
   } finally {
     loading = false;
     $("#refresh").disabled = false;
@@ -100,388 +136,413 @@ async function load() {
 }
 
 function renderOverview() {
-  const all = targets.flatMap((item) => checkRange(item.id));
-  const report = summarize(all);
-  const incidents = targets.reduce(
-    (sum, item) => sum + summarize(checkRange(item.id)).incidents,
-    0,
-  );
-  const online = targets.filter((item) => item.ok === true).length;
-  const known = targets.filter((item) => typeof item.ok === "boolean").length;
-  const overview = $("#overview");
-  overview.replaceChildren();
-  const primary = element("div", "overview-primary");
-  primary.append(
-    element("span", "", "Доступны сейчас"),
-    element("strong", "", `${online} / ${known}`),
-    element(
-      "small",
-      "",
-      known
-        ? `Сайтов с последней проверкой: ${known}`
-        : "Нет завершённых проверок",
-    ),
-  );
-  overview.append(primary);
-  for (const [label, value, note] of [
-    [
-      "Успешные проверки",
-      percent(report.share),
-      `${report.successes} из ${report.count} наблюдений`,
-    ],
-    [
-      "Медиана ответа",
-      report.medianMs === null
-        ? "Нет данных"
-        : `${integer.format(report.medianMs)} мс`,
-      "Только успешные ответы",
-    ],
-    [
-      "Эпизоды сбоев",
-      report.count ? String(incidents) : "Нет данных",
-      `Всего наблюдений: ${report.count}`,
-    ],
+  const parent = $("#overview");
+  parent.replaceChildren();
+  const up = targets.filter((item) => state(item).kind === "up").length;
+  const attention = targets.filter((item) => state(item).kind !== "up").length;
+  const report = summarize(targets.flatMap((item) => checksFor(item.id)));
+  for (const [value, label, className] of [
+    [up + " / " + targets.length, "с HTTP 2xx в свежем снимке", "main-stat"],
+    [attention, "требуют внимания", ""],
+    [report.count, "наблюдений за период", ""],
   ]) {
-    const box = element("div", "overview-stat");
-    box.append(
-      element("span", "", label),
-      element("strong", "", value),
-      element("small", "", note),
+    const p = el("p");
+    p.append(
+      el("strong", className, value),
+      document.createTextNode(" " + label),
     );
-    overview.append(box);
+    parent.append(p);
   }
 }
 
 function renderSites() {
   const query = $("#site-search").value.trim().toLocaleLowerCase("ru");
-  const visible = targets.filter(
-    (item) =>
-      `${item.name} ${item.url}`.toLocaleLowerCase("ru").includes(query) ||
-      checkRange(item.id).some((check) =>
-        String(check.status_code || "").includes(query),
-      ),
-  );
+  const filter = $("#state-filter").value;
+  const visible = targets.filter((item) => {
+    const status = state(item);
+    const matches = [
+      item.name,
+      item.url,
+      item.status_code,
+      item.error,
+      status.label,
+      ...checksFor(item.id).map((c) => c.status_code),
+    ]
+      .join(" ")
+      .toLocaleLowerCase("ru")
+      .includes(query);
+    return (
+      matches &&
+      (filter === "all" ||
+        (filter === "attention"
+          ? status.kind !== "up"
+          : filter === status.kind))
+    );
+  });
+  $("#site-count").textContent =
+    "Сайты: " + visible.length + " из " + targets.length;
   const list = $("#site-list");
   list.replaceChildren();
   if (!visible.length) {
-    placeholder(
+    empty(
       list,
+      "Ничего не найдено",
       targets.length
-        ? "По запросу сайты и проверки не найдены."
-        : "Сайты пока не заданы.",
+        ? "Измените запрос или фильтр состояния."
+        : "В конфигурации пока нет сайтов.",
     );
     return;
   }
   for (const item of visible) {
-    const checks = checkRange(item.id),
+    const checks = checksFor(item.id),
       report = summarize(checks),
-      row = element("button", "site-row");
-    row.type = "button";
-    row.setAttribute("aria-pressed", String(selectedId === item.id));
-    row.setAttribute("aria-label", `Открыть аналитику: ${item.name}`);
-    const name = element("span", "site-name");
+      status = state(item);
+    const row = button("", () => openDetail(item.id), "site-row");
+    row.id = "site-" + item.id;
+    row.setAttribute("aria-expanded", String(selectedId === item.id));
+    row.setAttribute("aria-controls", "detail");
+    const name = el("span", "site-name");
     name.append(
-      element("strong", "", item.name),
-      element("small", "", item.url),
+      el("strong", "", item.name),
+      el("small", "", item.url.replace(/^https:\/\//, "")),
     );
-    const state = element("span");
-    state.append(
-      element("span", "micro-label", "Сейчас"),
-      element(
-        "span",
-        `site-value ${item.ok ? "up" : item.ok === false ? "down" : ""}`,
-        item.ok
-          ? "Работает"
-          : item.status_code
-            ? `HTTP ${item.status_code}`
-            : item.ok === false
-              ? "Нет ответа"
-              : "Ожидает",
-      ),
+    const measures = el("span", "row-measures");
+    measures.append(
+      el("span", "", pct(report.share) + " · проверок: " + report.count),
     );
-    const share = element("span");
-    share.append(
-      element("span", "micro-label", "Проверки"),
-      element("span", "site-value", percent(report.share)),
-    );
-    const track = element("span");
-    track.append(
-      element("span", "micro-label", `Наблюдений: ${checks.length}`),
-    );
-    const bars = element("span", "mini-track");
+    const bars = el("span", "mini-track");
     bars.setAttribute("aria-hidden", "true");
-    for (const check of checks.slice(-16))
-      bars.append(element("i", check.ok ? "up" : "down"));
-    track.append(bars);
-    row.append(name, state, share, track);
-    row.addEventListener("click", () => {
-      selectedId = selectedId === item.id ? null : item.id;
-      renderSites();
-      renderDetail();
-      if (selectedId) $("#detail").scrollIntoView({ block: "nearest" });
-    });
+    for (const check of checks.slice(-24)) bars.append(el("i", outcome(check)));
+    measures.append(bars);
+    row.append(
+      name,
+      el("span", "state " + status.kind, status.label),
+      measures,
+    );
     list.append(row);
   }
 }
 
+function closeDetail() {
+  const previous = selectedId;
+  selectedId = null;
+  renderSites();
+  renderDetail();
+  const row = document.getElementById("site-" + previous);
+  (row || $("#site-search")).focus();
+}
+function openDetail(id) {
+  if (selectedId === id) {
+    closeDetail();
+    return;
+  }
+  selectedId = id;
+  renderSites();
+  renderDetail();
+  $("#detail-title").focus();
+}
 function renderDetail() {
   const pane = $("#detail"),
     target = targets.find((item) => item.id === selectedId);
-  pane.replaceChildren();
   pane.hidden = !target;
+  $("#workspace").dataset.open = String(Boolean(target));
+  pane.replaceChildren();
   if (!target) return;
-  const checks = checkRange(target.id),
-    report = summarize(checks);
-  const head = element("div", "detail-head"),
-    left = element("div");
-  left.append(
-    element("h3", "", target.name),
-    element(
-      "p",
-      "",
-      `Проверок: ${checks.length} · эпизодов сбоев: ${report.incidents}`,
-    ),
+  const checks = checksFor(target.id),
+    report = summarize(checks),
+    status = state(target);
+  const head = el("div", "detail-head"),
+    title = el("h3", "", target.name),
+    names = el("div");
+  title.id = "detail-title";
+  title.tabIndex = -1;
+  const link = el("a", "", target.url);
+  link.href = safeUrl(target.url);
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.setAttribute(
+    "aria-label",
+    "Открыть сайт " + target.name + " в новой вкладке",
   );
-  const close = element("button", "", "Закрыть");
-  close.type = "button";
-  close.onclick = () => {
-    selectedId = null;
-    renderSites();
-    renderDetail();
-  };
-  head.append(left, close);
+  names.append(title, link);
+  head.append(names, button("Закрыть", closeDetail));
   pane.append(head);
-  if (target.status_code === 403) {
-    pane.append(
-      element(
-        "p",
-        "check-note",
-        "Сервер ответил 403 на автоматическую проверку. Это не доказывает, что сайт недоступен посетителям.",
-      ),
-    );
-  } else if (target.error) {
-    pane.append(
-      element(
-        "p",
-        "check-note",
-        "Проверка не получила ответ. Возможна временная задержка или ограничение сети.",
-      ),
-    );
+  pane.append(el("p", "detail-status " + status.kind, status.label));
+  let note = "Последняя проверка: " + date(target.checked_at) + ". ";
+  if (target.error)
+    note += errors[target.error] || "Ошибка проверки: " + target.error + ".";
+  else if (outcome(target) === "blocked")
+    note +=
+      "Сервер ограничил автоматический запрос. Проверьте сайт в браузере; это не доказательство недоступности посетителям.";
+  else if (outcome(target) === "redirect")
+    note +=
+      "Старый снимок содержит только ответ перенаправления, без подтверждения конечной страницы.";
+  else if (outcome(target) === "up") note += "Получен успешный HTTP-ответ.";
+  if (target.redirect_count)
+    note +=
+      " Переходов: " +
+      target.redirect_count +
+      ". Конечный адрес: " +
+      target.final_url;
+  pane.append(el("p", "check-note", note));
+  if (api) {
+    const check = button("Проверить сейчас", async () => {
+      check.disabled = true;
+      check.textContent = "Проверяем…";
+      try {
+        const response = await fetch(
+          "/api/targets/" + encodeURIComponent(target.id) + "/check",
+          { method: "POST" },
+        );
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        await load();
+        $("#detail-title")?.focus();
+      } catch {
+        notice(
+          "#load-feedback",
+          "Ручная проверка не выполнена. Попробуйте позже.",
+        );
+        check.disabled = false;
+        check.textContent = "Проверить сейчас";
+      }
+    });
+    pane.append(check);
   }
-  const grid = element("div", "detail-grid"),
-    chart = element("div", "chart-panel"),
-    log = element("div", "log-panel");
-  const chartTitle = element("div", "panel-title");
-  chartTitle.append(
-    element("span", "", "Время ответа"),
-    element(
-      "small",
-      "",
-      report.medianMs === null
-        ? "Нет успешных ответов"
-        : `Медиана ${integer.format(report.medianMs)} мс`,
-    ),
-  );
-  chart.append(chartTitle);
-  const points = chartPoints(checks, 600, 150);
+  const facts = el("div", "detail-facts");
+  for (const [label, value] of [
+    ["Успешные наблюдения", pct(report.share)],
+    ["Медиана ответа", ms(report.medianMs)],
+    ["Эпизоды ошибок", report.incidents],
+  ]) {
+    const fact = el("div");
+    fact.append(el("span", "", label), el("strong", "", value));
+    facts.append(fact);
+  }
+  pane.append(facts, el("h3", "", "Как менялось время ответа"));
+  // Request failures have no HTTP response latency. Do not chart their timeout as a response.
+  const responses = checks.filter((check) => check.status_code && !check.error);
+  const points = chartPoints(responses, 560, 120);
   if (points.length) {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 600 180");
+    const ns = "http://www.w3.org/2000/svg",
+      svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "-8 -8 576 136");
     svg.setAttribute("class", "trend-svg");
     svg.setAttribute("role", "img");
     svg.setAttribute(
       "aria-label",
-      `График скорости ответа. Измерений: ${points.length}`,
+      "Время получения HTTP-ответа. Измерений: " +
+        points.length +
+        ". Значения доступны в журнале ниже.",
     );
-    const base = document.createElementNS(svg.namespaceURI, "line");
-    base.setAttribute("x1", "0");
-    base.setAttribute("x2", "600");
-    base.setAttribute("y1", "160");
-    base.setAttribute("y2", "160");
-    base.setAttribute("class", "base");
-    svg.append(base);
-    if (points.length > 1) {
-      const path = document.createElementNS(svg.namespaceURI, "path");
-      path.setAttribute("class", "line");
-      path.setAttribute(
-        "d",
-        points
-          .map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-          .join(" "),
-      );
-      svg.append(path);
-    }
-    for (const point of points) {
-      const circle = document.createElementNS(svg.namespaceURI, "circle");
-      circle.setAttribute("cx", point.x.toFixed(1));
-      circle.setAttribute("cy", point.y.toFixed(1));
-      circle.setAttribute("r", "4");
-      if (!point.ok) circle.setAttribute("class", "down");
-      const title = document.createElementNS(svg.namespaceURI, "title");
-      title.textContent = point.label;
-      circle.append(title);
+    // Unconnected samples avoid implying availability between scheduled checks.
+    points.forEach((point, index) => {
+      const circle = document.createElementNS(ns, "circle");
+      circle.setAttribute("cx", point.x);
+      circle.setAttribute("cy", point.y);
+      circle.setAttribute("r", "3");
+      circle.setAttribute("class", outcome(responses[index]));
+      const tooltip = document.createElementNS(ns, "title");
+      tooltip.textContent = point.label;
+      circle.append(tooltip);
       svg.append(circle);
-    }
-    chart.append(
-      svg,
-      element(
+    });
+    pane.append(svg);
+    const labels = el("div", "chart-labels");
+    labels.append(
+      el("span", "", date(responses[0].checked_at)),
+      el("span", "", date(responses.at(-1).checked_at)),
+    );
+    pane.append(labels);
+    pane.append(
+      el(
         "p",
         "chart-note",
-        "Каждая точка соответствует реальной проверке. Красная точка означает неуспешный ответ.",
+        "Шкала от 0 до " +
+          ms(Math.max(100, ...responses.map((c) => c.latency_ms))) +
+          ". Точки показывают отдельные замеры, включая редиректы. Это не время полной загрузки страницы.",
       ),
     );
   } else
-    chart.append(
-      element(
-        "p",
-        "empty-state",
-        "График появится после первой проверки с измерением времени.",
-      ),
+    pane.append(
+      el("p", "empty-state", "За этот период ещё нет измерений HTTP-ответа."),
     );
-  const logTitle = element("div", "panel-title");
-  logTitle.append(
-    element("span", "", "Последние проверки"),
-    element("small", "", `${checks.length} за период`),
-  );
-  log.append(logTitle);
-  if (!checks.length)
-    log.append(
-      element("p", "empty-state", "За выбранный период проверок нет."),
-    );
-  for (const check of checks.slice(-20).reverse()) {
-    const row = element("div", "log-item");
+  const log = el("div", "log-panel"),
+    rows = el("div", "log-list");
+  log.append(el("h3", "", "Последние проверки · " + checks.length));
+  rows.tabIndex = 0;
+  rows.setAttribute("role", "region");
+  rows.setAttribute("aria-label", "Журнал последних 50 проверок");
+  for (const check of checks.slice(-50).reverse()) {
+    const row = el("div", "log-item");
     row.append(
-      element("span", "", smallDate(check.checked_at)),
-      element(
+      el("time", "", date(check.checked_at)),
+      el(
         "span",
-        check.ok ? "" : "fail",
-        check.error ||
-          `HTTP ${check.status_code ?? "?"} · ${check.latency_ms ?? "?"} мс`,
+        outcome(check),
+        (check.error || "HTTP " + (check.status_code ?? "?")) +
+          " · " +
+          ms(check.latency_ms),
       ),
     );
-    log.append(row);
+    rows.append(row);
   }
-  grid.append(chart, log);
-  pane.append(grid);
+  if (!checks.length)
+    rows.append(el("p", "check-note", "За выбранный период наблюдений нет."));
+  log.append(rows);
+  pane.append(log);
 }
 
 function fillSeoSites() {
   const select = $("#seo-site"),
-    before = select.value;
-  select.replaceChildren();
-  for (const item of targets) {
-    const option = element("option", "", item.name);
+    previous = select.value;
+  const options = targets.map((item) => {
+    const option = el("option", "", item.name);
     option.value = item.id;
-    select.append(option);
-  }
-  if (targets.some((item) => item.id === before)) select.value = before;
+    return option;
+  });
+  select.replaceChildren(...options);
+  if (targets.some((item) => item.id === previous)) select.value = previous;
+  $("#seo-import").disabled = !targets.length;
   renderSeo();
-}
-function storedSeo() {
-  return seoData.get($("#seo-site").value) || null;
 }
 function renderSeo() {
   const content = $("#seo-content"),
-    data = storedSeo();
+    data = seoCurrent();
   content.replaceChildren();
-  if (!data?.rows?.length) {
-    const empty = element("div", "seo-empty");
-    empty.append(
-      element("strong", "", "Данных поиска пока нет"),
-      element(
-        "p",
-        "",
-        "Загрузите CSV из Google Search Console или Яндекс Вебмастера. Запросы, клики и показы появятся здесь без выдуманных значений.",
-      ),
+  $("#query-controls").hidden = !data;
+  $("#seo-clear").hidden = !data;
+  if (!data) {
+    empty(
+      content,
+      "Сначала загрузите экспорт запросов",
+      "Нужны колонки «Запрос», «Клики» и «Показы». Позиция необязательна. Выберите сайт и источник, затем загрузите CSV.",
     );
-    content.append(empty);
+    $("#query-results").replaceChildren();
     return;
   }
-  $("#seo-source").value = data.source;
-  const summary = summarizeSeo(data.rows),
-    metrics = element("div", "seo-metrics");
-  for (const [name, value] of [
-    ["Клики", integer.format(summary.clicks)],
-    ["Показы", integer.format(summary.impressions)],
-    ["CTR", summary.ctr === null ? "Нет данных" : `${(summary.ctr * 100).toFixed(1)}%`],
+  const metrics = el("div", "seo-metrics"),
+    summary = summarizeSeo(data.rows);
+  for (const [label, value] of [
+    ["Клики", summary.clicks],
+    ["Показы", summary.impressions],
     [
-      "Ср. позиция",
-      summary.position === null ? "Нет данных" : summary.position.toFixed(1),
+      "CTR",
+      summary.ctr === null
+        ? "Нет показов"
+        : numbers.format(summary.ctr * 100) + "%",
+    ],
+    [
+      "Средняя позиция",
+      summary.position === null
+        ? "Нет данных"
+        : numbers.format(summary.position),
     ],
   ]) {
-    const cell = element("div");
-    cell.append(element("span", "", name), element("strong", "", value));
-    metrics.append(cell);
-  }
-  content.append(metrics);
-  const tools = element("div", "query-tools"),
-    input = element("input", "query-search");
-  input.type = "search";
-  input.placeholder = "Поиск запроса";
-  input.setAttribute("aria-label", "Поиск поискового запроса");
-  input.value = seoQuery;
-  input.addEventListener("input", () => {
-    seoQuery = input.value;
-    renderSeo();
-    const replacement = content.querySelector(".query-search");
-    replacement?.focus();
-    replacement?.setSelectionRange(seoQuery.length, seoQuery.length);
-  });
-  tools.append(
-    input,
-    element(
-      "span",
-      "",
-      `${data.source} · импортировано ${smallDate(data.imported_at)} · запросов: ${data.rows.length}`,
-    ),
-  );
-  content.append(tools);
-  const rows = data.rows
-    .filter((row) =>
-      row.query
-        .toLocaleLowerCase("ru")
-        .includes(seoQuery.toLocaleLowerCase("ru")),
-    )
-    .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
-    .slice(0, 100);
-  if (!rows.length) {
-    content.append(
-      element("p", "empty-state", "По такому запросу данных нет."),
-    );
-    return;
-  }
-  const table = element("table", "query-table"),
-    thead = element("thead"),
-    tr = element("tr");
-  for (const name of ["Запрос", "Клики", "Показы", "CTR", "Позиция"])
-    tr.append(element("th", "", name));
-  thead.append(tr);
-  table.append(thead);
-  const body = element("tbody");
-  for (const row of rows) {
-    const line = element("tr");
-    for (const value of [
-      row.query,
-      integer.format(row.clicks),
-      integer.format(row.impressions),
-      row.impressions
-        ? `${((row.clicks / row.impressions) * 100).toFixed(1)}%`
-        : "Нет данных",
-      row.position === null ? "Нет данных" : row.position.toFixed(1),
-    ])
-      line.append(element("td", "", value));
-    body.append(line);
-  }
-  table.append(body);
-  content.append(table);
-  if (data.rows.length > 100)
-    content.append(
-      element(
-        "p",
-        "privacy-note",
-        "Показаны первые 100 запросов по кликам. Поиск работает по всему импортированному файлу.",
+    const cell = el("div");
+    cell.append(
+      el("span", "", label),
+      el(
+        "strong",
+        "",
+        typeof value === "number" ? numbers.format(value) : value,
       ),
     );
+    metrics.append(cell);
+  }
+  content.append(
+    metrics,
+    el(
+      "p",
+      "footnote",
+      data.filename +
+        " · импорт " +
+        date(data.importedAt) +
+        " · строк: " +
+        data.rows.length +
+        ". Метрики рассчитаны по всему файлу, позиция взвешена по показам.",
+    ),
+  );
+  renderQueries();
+}
+function renderQueries() {
+  const parent = $("#query-results"),
+    data = seoCurrent();
+  parent.replaceChildren();
+  if (!data) return;
+  const query = $("#query-search").value.trim().toLocaleLowerCase("ru"),
+    sort = $("#query-sort").value;
+  const filtered = data.rows
+    .filter((row) => row.query.toLocaleLowerCase("ru").includes(query))
+    .sort((a, b) =>
+      sort === "position"
+        ? (a.position ?? Infinity) - (b.position ?? Infinity)
+        : b[sort] - a[sort],
+    );
+  if (!filtered.length) {
+    empty(parent, "Запросы не найдены", "Измените текст поиска.");
+    return;
+  }
+  const pages = Math.ceil(filtered.length / 25);
+  queryPage = Math.min(queryPage, pages - 1);
+  const wrap = el("div", "table-wrap");
+  wrap.tabIndex = 0;
+  wrap.setAttribute("role", "region");
+  wrap.setAttribute(
+    "aria-label",
+    "Таблица поисковых запросов; на узком экране можно прокручивать горизонтально",
+  );
+  const table = el("table", "query-table"),
+    head = el("thead"),
+    headings = el("tr"),
+    body = el("tbody");
+  for (const label of ["Запрос", "Клики", "Показы", "CTR", "Позиция"]) {
+    const th = el("th", "", label);
+    th.scope = "col";
+    headings.append(th);
+  }
+  head.append(headings);
+  for (const item of filtered.slice(queryPage * 25, queryPage * 25 + 25)) {
+    const row = el("tr");
+    for (const value of [
+      item.query,
+      numbers.format(item.clicks),
+      numbers.format(item.impressions),
+      item.impressions
+        ? numbers.format((item.clicks / item.impressions) * 100) + "%"
+        : "Нет показов",
+      item.position === null ? "Нет данных" : numbers.format(item.position),
+    ])
+      row.append(el("td", "", value));
+    body.append(row);
+  }
+  table.append(head, body);
+  wrap.append(table);
+  parent.append(wrap);
+  const pagination = el("div", "pagination");
+  const changePage = (delta) => {
+    queryPage += delta;
+    renderQueries();
+    $("#query-results .table-wrap").focus();
+  };
+  const prev = button("Назад", () => changePage(-1)),
+    next = button("Далее", () => changePage(1));
+  prev.disabled = !queryPage;
+  next.disabled = queryPage === pages - 1;
+  pagination.append(
+    prev,
+    el(
+      "span",
+      "",
+      "Страница " +
+        (queryPage + 1) +
+        " / " +
+        pages +
+        " · строк: " +
+        filtered.length,
+    ),
+    next,
+  );
+  parent.append(pagination);
 }
 
 function render() {
@@ -491,35 +552,98 @@ function render() {
 }
 $("#refresh").addEventListener("click", load);
 $("#period").addEventListener("change", render);
-$("#site-search").addEventListener("input", renderSites);
-$("#seo-site").addEventListener("change", () => {
-  seoQuery = "";
-  $("#seo-feedback").textContent = "";
-  renderSeo();
+for (const id of ["#site-search", "#state-filter"])
+  $(id).addEventListener(
+    id === "#site-search" ? "input" : "change",
+    renderSites,
+  );
+document.addEventListener("keydown", (event) => {
+  if (
+    event.key === "Escape" &&
+    selectedId &&
+    $("#detail").contains(document.activeElement)
+  )
+    closeDetail();
+});
+for (const id of ["#seo-site", "#seo-source"])
+  $(id).addEventListener("change", () => {
+    queryPage = 0;
+    $("#query-search").value = "";
+    notice("#seo-feedback", "");
+    renderSeo();
+  });
+$("#query-search").addEventListener("input", () => {
+  queryPage = 0;
+  renderQueries();
+});
+$("#query-sort").addEventListener("change", () => {
+  queryPage = 0;
+  renderQueries();
 });
 $("#seo-import").addEventListener("click", () => $("#seo-file").click());
+$("#seo-clear").addEventListener("click", () => {
+  seoData.delete(seoKey());
+  renderSeo();
+  notice("#seo-feedback", "Импорт для выбранного сайта и источника удалён.");
+  $("#seo-import").focus();
+});
 $("#seo-file").addEventListener("change", async (event) => {
   const input = event.target,
     file = input.files?.[0];
   if (!file) return;
+  const key = seoKey(); // Capture the destination before asynchronous file reading.
+  notice("#seo-feedback", "Читаем CSV…");
   try {
+    if (!$("#seo-site").value) throw new Error("Сначала выберите сайт");
+    if (file.size > 5_000_000) throw new Error("Файл больше 5 МБ");
     const rows = parseSeoCsv(await file.text());
-    const data = {
-      source: $("#seo-source").value,
-      imported_at: new Date().toISOString(),
+    seoData.set(key, {
       rows,
-    };
-    seoData.set($("#seo-site").value, data);
-    seoQuery = "";
-    $("#seo-feedback").textContent =
-      `Запросов загружено: ${rows.length}. Данные останутся в этой вкладке до её обновления.`;
+      filename: file.name,
+      importedAt: new Date().toISOString(),
+    });
+    queryPage = 0;
+    $("#query-search").value = "";
+    notice(
+      "#seo-feedback",
+      "Загружено строк: " +
+        rows.length +
+        ". Данные сохранены только в памяти вкладки.",
+    );
     renderSeo();
   } catch (error) {
-    $("#seo-feedback").textContent =
-      `Не удалось прочитать CSV: ${error.message}`;
+    notice(
+      "#seo-feedback",
+      "Импорт не выполнен: " + error.message + ". Предыдущие данные сохранены.",
+    );
   } finally {
     input.value = "";
   }
 });
+function theme(dark) {
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  $("#theme").textContent = dark ? "Светлая тема" : "Тёмная тема";
+  $("#theme").setAttribute("aria-pressed", String(dark));
+}
+try {
+  theme(localStorage.getItem("site-watch-theme") === "dark");
+} catch {
+  theme(false);
+}
+$("#theme").addEventListener("click", () => {
+  const dark = document.documentElement.dataset.theme !== "dark";
+  theme(dark);
+  try {
+    localStorage.setItem("site-watch-theme", dark ? "dark" : "light");
+  } catch {
+    /* Storage can be blocked; the current tab still switches. */
+  }
+});
+if (api)
+  $("#mode-note").textContent =
+    "Локальный монитор. Ручная проверка доступна в подробностях сайта.";
 load();
-setInterval(load, 60000);
+setInterval(() => {
+  // Background refresh must not remove an input or button from under keyboard focus.
+  if (!document.hidden && document.activeElement === document.body) load();
+}, 60000);

@@ -3,121 +3,161 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#eef0ea" />
-    <title>Site Watch | Мониторинг и поиск</title>
+    <meta name="site-watch-mode" content="snapshot" />
+    <meta name="theme-color" content="#f3f4ef" />
+    <meta
+      name="description"
+      content="Проверки семи проектов Артёма: HTTP-ответы, история наблюдений и импорт поисковых запросов."
+    />
+    <title>Site Watch · Проверки проектов</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./style.css" />
     <script type="module" src="./app.js"></script>
   </head>
   <body>
+    <a class="skip" href="#monitor">К списку сайтов</a>
     <div class="shell">
       <header class="topbar">
-        <a class="wordmark" href="#top" aria-label="Site Watch, наверх">Site Watch</a>
+        <a class="wordmark" href="#monitor"
+          >Site Watch <span>/ проекты ave</span></a
+        >
         <nav aria-label="Разделы">
-          <a href="#monitor">Мониторинг</a
-          ><a href="#search-data">Поисковые запросы</a
+          <a href="#monitor">Проверки</a><a href="#search-data">Поиск / SEO</a
           ><a href="https://github.com/an724275-hash/site-watch-python-js"
-            >GitHub</a
+            >Исходники</a
           >
         </nav>
+        <button id="theme" type="button" aria-pressed="false">
+          Тёмная тема
+        </button>
       </header>
-      <main id="top">
-        <div class="intro">
-          <div>
-            <p class="eyebrow">НАБЛЮДЕНИЕ ЗА САЙТАМИ</p>
-            <h1>Состояние сайтов<span>.</span></h1>
-            <p>
-              Проверки доступности, скорость ответа и поисковые запросы в одном
-              месте.
-            </p>
-          </div>
-          <div class="timestamp">
-            <span>Последний снимок</span><time id="checked">Загружаем</time
-            ><button id="refresh" type="button">Обновить данные</button>
-          </div>
-        </div>
-
+      <main>
         <section id="monitor" aria-labelledby="monitor-title">
-          <div class="section-bar">
+          <div class="page-heading">
             <div>
-              <p class="eyebrow">01 / МОНИТОРИНГ</p>
-              <h2 id="monitor-title">Что происходит сейчас</h2>
+              <h1 id="monitor-title">Проверки проектов</h1>
+              <p id="mode-note">
+                HTTP-проверки из GitHub Actions, примерно каждые 30 минут.
+              </p>
             </div>
-            <label class="period-label"
-              >Период
-              <select id="period">
+            <div class="refresh-tools">
+              <span>Последний сбор <time id="checked">загружается…</time></span
+              ><button id="refresh" type="button">Обновить данные</button>
+            </div>
+          </div>
+          <p id="load-feedback" class="notice" role="status" hidden></p>
+          <div id="overview" class="overview" aria-live="polite">
+            <p>Загружаем сохранённые проверки…</p>
+          </div>
+          <div class="toolbar">
+            <label class="search-field"
+              >Найти сайт<input
+                id="site-search"
+                type="search"
+                placeholder="Название, адрес, HTTP-код"
+            /></label>
+            <label
+              >Показать<select id="state-filter">
+                <option value="all">Все состояния</option>
+                <option value="attention">Требуют внимания</option>
+                <option value="up">Успешный ответ</option>
+                <option value="blocked">Доступ ограничен</option>
+              </select></label
+            >
+            <label
+              >История<select id="period">
                 <option value="24">24 часа</option>
                 <option value="168" selected>7 дней</option>
               </select></label
             >
           </div>
-          <div id="overview" class="overview" aria-live="polite">
-            <p class="loading">Загружаем результаты проверок…</p>
+          <div class="list-caption">
+            <span id="site-count">Список сайтов</span
+            ><span>Выберите сайт, чтобы посмотреть журнал</span>
           </div>
-          <div class="list-heading">
-            <h3>Сайты</h3>
-            <label class="search-field"
-              ><span class="sr-only">Поиск сайта или проверки</span
-              ><input
-                id="site-search"
-                type="search"
-                placeholder="Поиск сайта или кода ответа"
-            /></label>
+          <div id="workspace" class="workspace">
+            <div id="site-list" class="site-list" aria-live="polite"></div>
+            <section
+              id="detail"
+              class="detail"
+              aria-label="Результаты выбранного сайта"
+              hidden
+            ></section>
           </div>
-          <div id="site-list" class="site-list" aria-live="polite"></div>
-          <div id="detail" class="detail" hidden></div>
+          <p class="footnote">
+            Успех означает HTTP 2xx в момент проверки. Это не проверка форм,
+            оплаты или работы JavaScript. 403 и 429 показываются отдельно: отказ
+            боту не доказывает сбой сайта.
+          </p>
         </section>
-
         <section
           id="search-data"
           class="seo-section"
           aria-labelledby="seo-title"
         >
-          <div class="section-bar">
-            <div>
-              <p class="eyebrow">02 / ПОИСК</p>
-              <h2 id="seo-title">Поисковые запросы</h2>
-              <p class="section-caption">
-                Импортируйте CSV из Google Search Console или Яндекс Вебмастера.
-                Файл обрабатывается только в вашем браузере.
-              </p>
-            </div>
+          <div class="section-heading">
+            <h2 id="seo-title">Запросы из поиска</h2>
+            <p>
+              Клики, показы и позиции из вашего CSV. Доступ к аккаунту
+              поисковика не требуется.
+            </p>
           </div>
           <div class="seo-controls">
-            <label>Сайт<select id="seo-site"></select></label
-            ><label
+            <label>Сайт<select id="seo-site"></select></label>
+            <label
               >Источник<select id="seo-source">
                 <option value="Google Search Console">
                   Google Search Console
                 </option>
                 <option value="Яндекс Вебмастер">Яндекс Вебмастер</option>
               </select></label
-            ><button id="seo-import" class="file-button" type="button">
-              Загрузить CSV</button
-            ><input id="seo-file" type="file" accept=".csv,text/csv" hidden />
+            >
+            <button id="seo-import" class="primary" type="button" disabled>
+              Загрузить CSV
+            </button>
+            <input id="seo-file" type="file" accept=".csv,text/csv" hidden />
+            <button id="seo-clear" type="button" hidden>Удалить импорт</button>
           </div>
-          <p id="seo-feedback" class="feedback" role="status"></p>
-          <div id="seo-content" aria-live="polite">
-            <div class="seo-empty">
-              <strong>Данных поиска пока нет</strong>
+          <p id="seo-feedback" class="notice" role="status" hidden></p>
+          <div id="seo-content">
+            <div class="empty-state">
+              <h3>Сначала загрузите экспорт запросов</h3>
               <p>
-                Экспортируйте таблицу запросов с колонками «Запрос», «Клики» и
-                «Показы», затем загрузите CSV. Демонстрационных чисел здесь нет.
+                Нужны колонки «Запрос», «Клики» и «Показы». Позиция
+                необязательна. Поддерживаются CSV из Google Search Console и
+                Яндекс Вебмастера.
               </p>
             </div>
           </div>
-          <p class="privacy-note">
-            SEO-файл остаётся в памяти этой вкладки до её закрытия или
-            обновления. Он не отправляется на GitHub Pages или в Site Watch.
+          <div id="query-controls" class="query-tools" hidden>
+            <label
+              >Найти запрос<input
+                id="query-search"
+                type="search"
+                placeholder="Слово или фраза" /></label
+            ><label
+              >Сортировать<select id="query-sort">
+                <option value="clicks">По кликам</option>
+                <option value="impressions">По показам</option>
+                <option value="position">По позиции</option>
+              </select></label
+            >
+          </div>
+          <div id="query-results" aria-live="polite"></div>
+          <p class="footnote">
+            Каждый сайт и источник имеют отдельный импорт. CSV хранится только в
+            памяти вкладки и исчезнет после обновления страницы. Файл никуда не
+            отправляется. Период задаётся при экспорте из поисковика.
           </p>
         </section>
       </main>
       <footer>
-        <span>Site Watch</span>
+        <strong>Site Watch</strong>
         <p>
-          Публичная страница показывает сохранённые проверки GitHub Actions.
-          Запуски по расписанию могут задерживаться. Доля успешных проверок не
-          равна гарантии доступности между ними.
+          Сохранённые наблюдения, не проверка в реальном времени. Пропуски
+          расписания не заполняются и не считаются успешными ответами.
         </p>
+        <a href="https://giveaway-one.ru/">Портфолио</a>
       </footer>
     </div>
   </body>

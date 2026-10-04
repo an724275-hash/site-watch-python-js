@@ -1,11 +1,11 @@
 """Produce a real, bounded history of scheduled checks for GitHub Pages."""
 import asyncio
 import json
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
+from probe import observe
 
 ROOT = Path(__file__).parent
 
@@ -22,12 +22,7 @@ def read_history(path: Path) -> dict | None:
 
 
 async def probe(client: httpx.AsyncClient, target: dict) -> dict:
-    started = time.perf_counter()
-    try:
-        response = await client.get(target["url"])
-        return {"id": target["id"], "name": target["name"], "url": target["url"], "ok": 200 <= response.status_code < 400, "status_code": response.status_code, "latency_ms": round((time.perf_counter() - started) * 1000)}
-    except httpx.HTTPError as exc:
-        return {"id": target["id"], "name": target["name"], "url": target["url"], "ok": False, "error": type(exc).__name__, "latency_ms": round((time.perf_counter() - started) * 1000)}
+    return {**target, **await observe(client, target["url"])}
 
 
 def merge_history(existing: dict | None, latest: dict) -> dict:

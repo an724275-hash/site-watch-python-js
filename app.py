@@ -5,15 +5,15 @@ import asyncio
 import json
 import os
 import sqlite3
-import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from probe import observe
 
 ROOT = Path(__file__).parent
 DB_PATH = Path(os.environ.get("SITE_WATCH_DB", ROOT / "site-watch.sqlite3"))
@@ -26,7 +26,7 @@ def targets() -> list[dict]:
     if not isinstance(data, list):
         raise ValueError("targets.json must contain a list")
     for item in data:
-        if not all(isinstance(item.get(key), str) for key in ("id", "name", "url")):
+        if not isinstance(item, dict) or not all(isinstance(item.get(key), str) and item[key].strip() for key in ("id", "name", "url")):
             raise ValueError("Each target needs id, name and url strings")
         if not item["url"].startswith("https://"):
             raise ValueError("Only HTTPS targets are supported")
@@ -44,33 +44,25 @@ def connect() -> sqlite3.Connection:
         status_code INTEGER, latency_ms INTEGER, ok INTEGER NOT NULL, error TEXT
     )""")
     db.execute("CREATE INDEX IF NOT EXISTS checks_target_time ON checks(target_id, id DESC)")
+    columns = {row[1] for row in db.execute("PRAGMA table_info(checks)")}
+    for name, kind in (("final_url", "TEXT"), ("redirect_count", "INTEGER")):
+        if name not in columns:
+            db.execute(f"ALTER TABLE checks ADD COLUMN {name} {kind}")
     return db
 
 
 async def check_target(target: dict, transport: httpx.AsyncBaseTransport | None = None) -> dict:
-    started = time.perf_counter()
-    code = None
-    error = None
-    try:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=False, transport=transport) as client:
-            response = await client.get(target["url"])
-            code = response.status_code
-            ok = 200 <= code < 400
-    except httpx.HTTPError as exc:
-        ok = False
-        error = type(exc).__name__
+    async with httpx.AsyncClient(timeout=8, follow_redirects=False, transport=transport) as client:
+        result = await observe(client, target["url"])
     record = {
         "target_id": target["id"],
         "checked_at": datetime.now(timezone.utc).isoformat(),
-        "status_code": code,
-        "latency_ms": round((time.perf_counter() - started) * 1000),
-        "ok": ok,
-        "error": error,
+        **result,
     }
     with connect() as db:
         db.execute("""INSERT INTO checks
-            (target_id, checked_at, status_code, latency_ms, ok, error)
-            VALUES (:target_id, :checked_at, :status_code, :latency_ms, :ok, :error)""", record)
+            (target_id, checked_at, status_code, latency_ms, ok, error, final_url, redirect_count)
+            VALUES (:target_id, :checked_at, :status_code, :latency_ms, :ok, :error, :final_url, :redirect_count)""", record)
     return record
 
 
@@ -105,7 +97,8 @@ app = FastAPI(title="Site Watch", lifespan=lifespan)
 
 @app.get("/")
 def home():
-    return FileResponse(ROOT / "docs" / "index.html")
+    html = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(html.replace('name="site-watch-mode" content="snapshot"', 'name="site-watch-mode" content="api"'))
 
 
 @app.get("/api/targets")

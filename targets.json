@@ -1,6 +1,29 @@
 [
-  {"id": "portfolio", "name": "Портфолио", "url": "https://giveaway-one.ru/"},
-  {"id": "proj", "name": "Проект для портфолио", "url": "https://an724275-hash.github.io/proj-for-portfolio/"},
-  {"id": "leather", "name": "San Diego Leather Repair", "url": "https://sandiegoleatherrepair.com/"},
-  {"id": "marcos", "name": "Marcos Mall", "url": "https://marcos-mall.ru/"}
+  { "id": "portfolio", "name": "Портфолио", "url": "https://giveaway-one.ru/" },
+  {
+    "id": "proj",
+    "name": "Лендинг мероприятия",
+    "url": "https://an724275-hash.github.io/proj-for-portfolio/"
+  },
+  {
+    "id": "leather",
+    "name": "GoldenFix · San Diego",
+    "url": "https://sandiegoleatherrepair.com/"
+  },
+  { "id": "marcos", "name": "Макрос Молл", "url": "https://marcos-mall.ru/" },
+  {
+    "id": "snekit",
+    "name": "Китайский магазинчик",
+    "url": "https://snekit-neru.ru/"
+  },
+  {
+    "id": "nordic",
+    "name": "Nordic Timbers",
+    "url": "https://joboffice.info/"
+  },
+  {
+    "id": "duck",
+    "name": "3D-утка",
+    "url": "https://an724275-hash.github.io/duck-object-site/"
+  }
 ]

@@ -40,3 +40,24 @@ def test_only_https_targets(tmp_path):
     app.TARGETS_PATH.write_text('[{"id":"bad","name":"Bad","url":"http://localhost"}]')
     with pytest.raises(ValueError):
         app.targets()
+
+
+def test_local_page_explicitly_enables_api_mode():
+    with TestClient(app.app) as client:
+        assert 'name="site-watch-mode" content="api"' in client.get("/").text
+        assert 'name="site-watch-mode" content="snapshot"' in client.get("/index.html").text
+
+
+def test_existing_database_migrates_without_losing_checks():
+    import sqlite3
+    db = sqlite3.connect(app.DB_PATH)
+    db.execute("""CREATE TABLE checks (
+        id INTEGER PRIMARY KEY, target_id TEXT, checked_at TEXT,
+        status_code INTEGER, latency_ms INTEGER, ok INTEGER, error TEXT
+    )""")
+    db.execute("INSERT INTO checks VALUES (1, 'demo', '2026-10-04T10:00:00Z', 200, 100, 1, NULL)")
+    db.commit()
+    db.close()
+    with app.connect() as migrated:
+        assert migrated.execute("SELECT COUNT(*) FROM checks").fetchone()[0] == 1
+        assert "final_url" in {row[1] for row in migrated.execute("PRAGMA table_info(checks)")}

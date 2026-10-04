@@ -1,12 +1,13 @@
 export function observations(history, targetId, hours, now = Date.now()) {
   const since = now - hours * 3600000;
-  return (history?.checks || []).flatMap((snapshot) => {
+  const unique = new Map();
+  for (const snapshot of history?.checks || []) {
     const time = Date.parse(snapshot.checked_at);
     const item = snapshot.targets?.find((target) => target.id === targetId);
-    return Number.isFinite(time) && time >= since && time <= now && item
-      ? [{ ...item, checked_at: snapshot.checked_at }]
-      : [];
-  });
+    if (Number.isFinite(time) && time >= since && time <= now && item)
+      unique.set(time, { ...item, checked_at: snapshot.checked_at });
+  }
+  return [...unique].sort(([a], [b]) => a - b).map(([, check]) => check);
 }
 
 export function median(values) {
@@ -16,6 +17,17 @@ export function median(values) {
   return sorted.length % 2
     ? sorted[middle]
     : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
+}
+
+export function outcome(check) {
+  if (!check || check.ok === null || check.ok === undefined) return "unknown";
+  if ([401, 403, 429].includes(check.status_code)) return "blocked";
+  if (
+    check.error?.includes("Redirect") ||
+    (check.status_code >= 300 && check.status_code < 400)
+  )
+    return "redirect";
+  return check.ok ? "up" : "down";
 }
 
 export function summarize(checks) {
@@ -28,15 +40,21 @@ export function summarize(checks) {
       medianMs: null,
       incidents: 0,
     };
-  const successes = checks.filter((check) => check.ok).length;
+  const successes = checks.filter((check) => outcome(check) === "up").length;
   const delays = checks
-    .filter((check) => check.ok && Number.isFinite(check.latency_ms))
+    .filter(
+      (check) =>
+        outcome(check) === "up" &&
+        Number.isFinite(check.latency_ms) &&
+        check.latency_ms >= 0,
+    )
     .map((check) => check.latency_ms);
   let incidents = 0,
     wasDown = false;
   for (const check of checks) {
-    if (!check.ok && !wasDown) incidents++;
-    wasDown = !check.ok;
+    const down = outcome(check) === "down";
+    if (down && !wasDown) incidents++;
+    wasDown = down;
   }
   return {
     count,
@@ -48,7 +66,14 @@ export function summarize(checks) {
 }
 
 export function chartPoints(checks, width = 600, height = 150) {
-  const valid = checks.filter((check) => Number.isFinite(check.latency_ms));
+  const valid = checks
+    .filter(
+      (check) =>
+        Number.isFinite(check.latency_ms) &&
+        check.latency_ms >= 0 &&
+        Number.isFinite(Date.parse(check.checked_at)),
+    )
+    .sort((a, b) => Date.parse(a.checked_at) - Date.parse(b.checked_at));
   if (!valid.length) return [];
   const max = Math.max(100, ...valid.map((check) => check.latency_ms));
   const minTime = Date.parse(valid[0].checked_at);

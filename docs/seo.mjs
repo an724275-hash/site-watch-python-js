@@ -21,6 +21,7 @@ function parseRows(text, delimiter) {
       field = "";
     } else field += char;
   }
+  if (quoted) throw new Error("Незакрытая кавычка в CSV");
   if (field || row.length) {
     row.push(field);
     rows.push(row);
@@ -40,6 +41,7 @@ function number(value) {
     .replace(/\s/g, "")
     .replace("%", "")
     .replace(",", ".");
+  if (!raw || !/^\d+(\.\d+)?$/.test(raw)) return null;
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
@@ -73,11 +75,19 @@ function column(headers, key) {
 
 export function parseSeoCsv(text) {
   if (text.length > 5_000_000) throw new Error("Файл больше 5 МБ");
-  const firstLine = text.split(/\r?\n/, 1)[0];
-  const delimiter = [";", ",", "\t"].sort(
-    (a, b) => firstLine.split(b).length - firstLine.split(a).length,
-  )[0];
-  const rows = parseRows(text, delimiter);
+  // Find the header even when an export has report metadata before it.
+  const candidates = [";", ",", "\t"].map((separator) =>
+    parseRows(text, separator),
+  );
+  const rows =
+    candidates.find((candidate) =>
+      candidate.some(
+        (row) =>
+          column(row, "query") >= 0 &&
+          column(row, "clicks") >= 0 &&
+          column(row, "impressions") >= 0,
+      ),
+    ) || [];
   const headerIndex = rows.findIndex(
     (row) =>
       column(row, "query") >= 0 &&
@@ -92,22 +102,34 @@ export function parseSeoCsv(text) {
     i = column(headers, "impressions"),
     p = column(headers, "position");
   const parsed = [];
-  for (const row of rows.slice(headerIndex + 1)) {
+  for (let rowIndex = headerIndex + 1; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex];
+    if (row.every((cell) => !cell.trim())) continue;
     const query = (row[q] || "").trim();
     const clicks = number(row[c]),
       impressions = number(row[i]);
     const position = p >= 0 ? number(row[p]) : null;
+    if (/^итого$|^total$/i.test(query)) continue;
     if (
       !query ||
-      /^итого$|^total$/i.test(query) ||
       clicks === null ||
       impressions === null ||
       clicks < 0 ||
-      impressions < 0
+      impressions < 0 ||
+      !Number.isInteger(clicks) ||
+      !Number.isInteger(impressions) ||
+      clicks > impressions
     )
-      continue;
+      throw new Error(`Некорректные клики или показы в строке ${rowIndex + 1}`);
+    if (position !== null && position <= 0)
+      throw new Error("Позиция должна быть больше нуля");
+    if (p >= 0 && row[p]?.trim() && position === null)
+      throw new Error("Некорректная позиция в CSV");
     parsed.push({ query, clicks, impressions, position });
-    if (parsed.length >= 5000) break;
+    if (parsed.length > 5000)
+      throw new Error(
+        "Больше 5000 запросов. Разделите экспорт на файлы; данные не были заменены.",
+      );
   }
   if (!parsed.length) throw new Error("В файле нет строк с запросами");
   return parsed;
