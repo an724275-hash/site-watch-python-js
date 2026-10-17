@@ -1,88 +1,6 @@
 {
-  "updated_at": "2026-10-17T08:48:53.007247+00:00",
+  "updated_at": "2026-10-17T12:58:15.218798+00:00",
   "checks": [
-    {
-      "checked_at": "2026-10-10T09:01:22.905298+00:00",
-      "targets": [
-        {
-          "id": "portfolio",
-          "name": "Портфолио",
-          "url": "https://giveaway-one.ru/",
-          "ok": true,
-          "status_code": 200,
-          "error": null,
-          "latency_ms": 487,
-          "final_url": "https://giveaway-one.ru/",
-          "redirect_count": 0
-        },
-        {
-          "id": "proj",
-          "name": "Лендинг мероприятия",
-          "url": "https://an724275-hash.github.io/proj-for-portfolio/",
-          "ok": true,
-          "status_code": 200,
-          "error": null,
-          "latency_ms": 183,
-          "final_url": "https://an724275-hash.github.io/proj-for-portfolio/",
-          "redirect_count": 0
-        },
-        {
-          "id": "leather",
-          "name": "GoldenFix · San Diego",
-          "url": "https://sandiegoleatherrepair.com/",
-          "ok": false,
-          "status_code": 403,
-          "error": null,
-          "latency_ms": 244,
-          "final_url": "https://sandiegoleatherrepair.com/",
-          "redirect_count": 0
-        },
-        {
-          "id": "marcos",
-          "name": "Макрос Молл",
-          "url": "https://marcos-mall.ru/",
-          "ok": true,
-          "status_code": 200,
-          "error": null,
-          "latency_ms": 980,
-          "final_url": "https://marcos-mall.ru/",
-          "redirect_count": 0
-        },
-        {
-          "id": "snekit",
-          "name": "Китайский магазинчик",
-          "url": "https://snekit-neru.ru/",
-          "ok": true,
-          "status_code": 200,
-          "error": null,
-          "latency_ms": 801,
-          "final_url": "https://snekit-neru.ru/",
-          "redirect_count": 0
-        },
-        {
-          "id": "nordic",
-          "name": "Nordic Timbers",
-          "url": "https://joboffice.info/",
-          "ok": true,
-          "status_code": 200,
-          "error": null,
-          "latency_ms": 585,
-          "final_url": "https://joboffice.info/",
-          "redirect_count": 0
-        },
-        {
-          "id": "duck",
-          "name": "3D-утка",
-          "url": "https://an724275-hash.github.io/duck-object-site/",
-          "ok": true,
-          "status_code": 200,
-          "error": null,
-          "latency_ms": 156,
-          "final_url": "https://an724275-hash.github.io/duck-object-site/",
-          "redirect_count": 0
-        }
-      ]
-    },
     {
       "checked_at": "2026-10-10T15:22:05.842613+00:00",
       "targets": [
@@ -3030,6 +2948,88 @@
           "status_code": 200,
           "error": null,
           "latency_ms": 182,
+          "final_url": "https://an724275-hash.github.io/duck-object-site/",
+          "redirect_count": 0
+        }
+      ]
+    },
+    {
+      "checked_at": "2026-10-17T12:58:15.218798+00:00",
+      "targets": [
+        {
+          "id": "portfolio",
+          "name": "Портфолио",
+          "url": "https://giveaway-one.ru/",
+          "ok": true,
+          "status_code": 200,
+          "error": null,
+          "latency_ms": 402,
+          "final_url": "https://giveaway-one.ru/",
+          "redirect_count": 0
+        },
+        {
+          "id": "proj",
+          "name": "Лендинг мероприятия",
+          "url": "https://an724275-hash.github.io/proj-for-portfolio/",
+          "ok": true,
+          "status_code": 200,
+          "error": null,
+          "latency_ms": 368,
+          "final_url": "https://an724275-hash.github.io/proj-for-portfolio/",
+          "redirect_count": 0
+        },
+        {
+          "id": "leather",
+          "name": "GoldenFix · San Diego",
+          "url": "https://sandiegoleatherrepair.com/",
+          "ok": false,
+          "status_code": 403,
+          "error": null,
+          "latency_ms": 331,
+          "final_url": "https://sandiegoleatherrepair.com/",
+          "redirect_count": 0
+        },
+        {
+          "id": "marcos",
+          "name": "Макрос Молл",
+          "url": "https://marcos-mall.ru/",
+          "ok": true,
+          "status_code": 200,
+          "error": null,
+          "latency_ms": 1093,
+          "final_url": "https://marcos-mall.ru/",
+          "redirect_count": 0
+        },
+        {
+          "id": "snekit",
+          "name": "Китайский магазинчик",
+          "url": "https://snekit-neru.ru/",
+          "ok": true,
+          "status_code": 200,
+          "error": null,
+          "latency_ms": 786,
+          "final_url": "https://snekit-neru.ru/",
+          "redirect_count": 0
+        },
+        {
+          "id": "nordic",
+          "name": "Nordic Timbers",
+          "url": "https://joboffice.info/",
+          "ok": true,
+          "status_code": 200,
+          "error": null,
+          "latency_ms": 669,
+          "final_url": "https://joboffice.info/",
+          "redirect_count": 0
+        },
+        {
+          "id": "duck",
+          "name": "3D-утка",
+          "url": "https://an724275-hash.github.io/duck-object-site/",
+          "ok": true,
+          "status_code": 200,
+          "error": null,
+          "latency_ms": 371,
           "final_url": "https://an724275-hash.github.io/duck-object-site/",
           "redirect_count": 0
         }
